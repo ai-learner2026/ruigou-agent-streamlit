@@ -65,6 +65,18 @@ COZE_API_BASE = "https://api.coze.cn"
 
 不要把 `.streamlit/secrets.toml` 上传到 GitHub。
 
+## 不经过 GitHub 的容器部署
+
+项目包含 `Dockerfile`，可部署到能上传源码或 Docker 镜像的平台。平台环境变量填写：
+
+```text
+COZE_API_TOKEN=pat_新的真实Token
+COZE_BOT_ID=7696073403866562560
+COZE_API_BASE=https://api.coze.cn
+```
+
+容器监听端口为 `8501`。Docker 镜像不会包含 `.streamlit/secrets.toml`。
+
 ## 不登录 GitHub 的长期部署：Hugging Face Spaces
 
 1. 登录 Hugging Face，进入 Spaces，选择 `Create new Space`。
