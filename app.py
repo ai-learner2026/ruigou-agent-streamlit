@@ -22,6 +22,7 @@ DEFAULT_PRESET_QUESTIONS = [
     "我的订单到哪了",
     "碎屏险怎么买？保修多久",
 ]
+MAX_CONTEXT_MESSAGES = 8
 
 
 def setting(name: str, default: str = "") -> str:
@@ -136,23 +137,37 @@ def answer_from_messages(messages: list[dict[str, Any]]) -> str:
     return "\n\n".join(answers).strip() or "智能体没有返回文本内容。"
 
 
-def ask_coze(question: str) -> str:
+def ask_coze(question: str):
+    history = st.session_state.messages[1:-1][-MAX_CONTEXT_MESSAGES:]
+    additional_messages = []
+    for message in history:
+        content = str(message.get("content") or "").strip()
+        if not content:
+            continue
+        additional_messages.append(
+            {
+                "role": message["role"],
+                "type": "question" if message["role"] == "user" else "answer",
+                "content": content[:4000],
+                "content_type": "text",
+            }
+        )
+    additional_messages.append(
+        {
+            "role": "user",
+            "type": "question",
+            "content": question,
+            "content_type": "text",
+        }
+    )
+
     body: dict[str, Any] = {
         "bot_id": COZE_BOT_ID,
         "user_id": st.session_state.user_id,
         "stream": True,
         "auto_save_history": True,
-        "additional_messages": [
-            {
-                "role": "user",
-                "type": "question",
-                "content": question,
-                "content_type": "text",
-            }
-        ],
+        "additional_messages": additional_messages,
     }
-    if st.session_state.conversation_id:
-        body["conversation_id"] = st.session_state.conversation_id
 
     response = requests.post(
         f"{COZE_API_BASE}/v3/chat",
@@ -172,14 +187,18 @@ def ask_coze(question: str) -> str:
 
     event_name = ""
     answers: list[str] = []
+    yielded = False
     conversation_id = st.session_state.conversation_id
     chat_id = None
     failed_message = ""
 
-    for raw_line in response.iter_lines(decode_unicode=True):
+    for raw_line in response.iter_lines(decode_unicode=False):
         if not raw_line:
             continue
-        line = raw_line.strip()
+        if isinstance(raw_line, bytes):
+            line = raw_line.decode("utf-8", errors="replace").strip()
+        else:
+            line = str(raw_line).strip()
         if line.startswith("event:"):
             event_name = line.partition(":")[2].strip()
             continue
@@ -213,19 +232,31 @@ def ask_coze(question: str) -> str:
                 content = str(event_data.get("content") or "").strip()
                 if content:
                     answers.append(content)
+        elif event_name == "conversation.message.delta":
+            if (
+                event_data.get("role") == "assistant"
+                and event_data.get("type") == "answer"
+            ):
+                content = str(event_data.get("content") or "")
+                if content:
+                    yielded = True
+                    yield content
 
     response.close()
 
     if failed_message:
         raise RuntimeError(failed_message)
     if answers:
-        return "\n\n".join(answers).strip()
+        if not yielded:
+            yield "\n\n".join(answers).strip()
+        return
 
     # 某些旧版本流式响应未携带最终 answer，使用消息列表兜底。
     if conversation_id and chat_id:
         messages = list_messages(conversation_id, chat_id)
-        return answer_from_messages(messages)
-    return "智能体没有返回文本内容。"
+        yield answer_from_messages(messages)
+        return
+    yield "智能体没有返回文本内容。"
 
 
 st.title("睿购智选 · 手机消费决策 Agent")
@@ -295,11 +326,13 @@ if question:
         try:
             with st.chat_message("assistant"):
                 with st.spinner("AI 导购正在查询商品与优惠..."):
-                    answer = ask_coze(question)
-                    st.markdown(answer)
+                    answer = st.write_stream(ask_coze(question))
+                    answer = str(answer or "").strip()
         except Exception as error:
             answer = f"请求失败：{error}"
             with st.chat_message("assistant"):
                 st.error(answer)
 
+    if not answer:
+        answer = "智能体没有返回文本内容。"
     st.session_state.messages.append({"role": "assistant", "content": answer})
