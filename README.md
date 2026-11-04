@@ -110,6 +110,8 @@ COZE_API_BASE = https://api.coze.cn
 
 应用会保存本次 Streamlit 会话中的 `conversation_id`，支持多轮对话。
 
+`conversation_id` 必须作为 `POST /v3/chat` 的 URL Query 参数传递，不能放进 JSON 请求体。当前代码已按 Coze API 规则修正。
+
 ## 常见错误
 
 ### 4015

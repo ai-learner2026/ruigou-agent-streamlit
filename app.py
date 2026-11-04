@@ -138,40 +138,32 @@ def answer_from_messages(messages: list[dict[str, Any]]) -> str:
 
 
 def ask_coze(question: str):
-    history = st.session_state.messages[1:-1][-MAX_CONTEXT_MESSAGES:]
-    additional_messages = []
-    for message in history:
-        content = str(message.get("content") or "").strip()
-        if not content:
-            continue
-        additional_messages.append(
-            {
-                "role": message["role"],
-                "type": "question" if message["role"] == "user" else "answer",
-                "content": content[:4000],
-                "content_type": "text",
-            }
-        )
-    additional_messages.append(
-        {
-            "role": "user",
-            "type": "question",
-            "content": question,
-            "content_type": "text",
-        }
-    )
-
     body: dict[str, Any] = {
         "bot_id": COZE_BOT_ID,
         "user_id": st.session_state.user_id,
         "stream": True,
         "auto_save_history": True,
-        "additional_messages": additional_messages,
+        "additional_messages": [
+            {
+                "role": "user",
+                "type": "question",
+                "content": question,
+                "content_type": "text",
+            }
+        ],
     }
+
+    # Coze /v3/chat 的 conversation_id 是 URL Query 参数，不是请求体字段。
+    request_params = None
+    if st.session_state.conversation_id:
+        request_params = {
+            "conversation_id": st.session_state.conversation_id
+        }
 
     response = requests.post(
         f"{COZE_API_BASE}/v3/chat",
         headers=api_headers(),
+        params=request_params,
         json=body,
         timeout=(30, 180),
         stream=True,
