@@ -1,12 +1,16 @@
 import json
 import os
-import tomllib
 import uuid
 from pathlib import Path
 from typing import Any
 
 import requests
 import streamlit as st
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 and earlier on Streamlit Cloud
+    import tomli as tomllib
 
 
 DEFAULT_BOT_ID = "7696073403866562560"

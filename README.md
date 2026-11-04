@@ -65,6 +65,8 @@ COZE_API_BASE = "https://api.coze.cn"
 
 不要把 `.streamlit/secrets.toml` 上传到 GitHub。
 
+项目兼容 Python 3.9 及以上。Streamlit Cloud 如果使用 Python 3.10 或更早版本，会自动安装 `tomli`。
+
 ## 不经过 GitHub 的容器部署
 
 项目包含 `Dockerfile`，可部署到能上传源码或 Docker 镜像的平台。平台环境变量填写：
